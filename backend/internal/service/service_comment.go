@@ -23,11 +23,12 @@ type commentService struct {
 	posts     repository.PostRepository
 	sensitive SensitiveWordService
 	review    ReviewService
+	aliases   AliasService
 	logger    *slog.Logger
 }
 
-func NewCommentService(comments repository.CommentRepository, posts repository.PostRepository, sensitive SensitiveWordService, review ReviewService, logger *slog.Logger) CommentService {
-	return &commentService{comments: comments, posts: posts, sensitive: sensitive, review: review, logger: logger}
+func NewCommentService(comments repository.CommentRepository, posts repository.PostRepository, sensitive SensitiveWordService, review ReviewService, aliases AliasService, logger *slog.Logger) CommentService {
+	return &commentService{comments: comments, posts: posts, sensitive: sensitive, review: review, aliases: aliases, logger: logger}
 }
 
 func (s *commentService) Create(identityID, postID uint, content string) (*model.Comment, []string, bool, error) {
@@ -55,6 +56,10 @@ func (s *commentService) Create(identityID, postID uint, content string) (*model
 	}
 	if err := s.comments.Create(comment); err != nil {
 		return nil, hits, blocked, err
+	}
+	// 评论者与楼主一样使用本帖专属化名，失败不阻断评论（读取时会按需补生成）。
+	if _, err := s.aliases.Ensure(postID, identityID); err != nil {
+		s.logger.Error("ensure comment alias", "error", err)
 	}
 	if !blocked {
 		post.CommentCount++

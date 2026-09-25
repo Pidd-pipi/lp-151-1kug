@@ -57,6 +57,7 @@ func main() {
 	likeRepo := repository.NewLikeRepository(db)
 	sensitiveRepo := repository.NewSensitiveWordRepository(db)
 	reviewRepo := repository.NewReviewQueueRepository(db)
+	postAliasRepo := repository.NewPostAliasRepository(db)
 
 	// Services
 	tokenService := service.NewTokenService(cfg.JWTSecret, cfg.JWTExpireMin)
@@ -64,16 +65,17 @@ func main() {
 	tagService := service.NewTagService(tagRepo)
 	sensitiveService := service.NewSensitiveWordService(sensitiveRepo)
 	reviewService := service.NewReviewService(reviewRepo, postRepo, commentRepo, logger)
-	postService := service.NewPostService(postRepo, tagService, sensitiveService, reviewService, logger)
-	commentService := service.NewCommentService(commentRepo, postRepo, sensitiveService, reviewService, logger)
+	aliasService := service.NewAliasService(postAliasRepo, logger)
+	postService := service.NewPostService(postRepo, tagService, sensitiveService, reviewService, aliasService, logger)
+	commentService := service.NewCommentService(commentRepo, postRepo, sensitiveService, reviewService, aliasService, logger)
 	likeService := service.NewLikeService(likeRepo, postRepo, commentRepo, logger)
 	_ = service.NewHeatService(postRepo, logger)
 	_ = service.NewCacheService(redisClient)
 
 	// Handlers
 	authHandler := handler.NewAuthHandler(identityService, logger)
-	postHandler := handler.NewPostHandler(postService, likeService, logger)
-	commentHandler := handler.NewCommentHandler(commentService, likeService, logger)
+	postHandler := handler.NewPostHandler(postService, likeService, aliasService, logger)
+	commentHandler := handler.NewCommentHandler(commentService, likeService, aliasService, logger)
 	tagHandler := handler.NewTagHandler(tagService, logger)
 	likeHandler := handler.NewLikeHandler(likeService, logger)
 	adminHandler := handler.NewAdminHandler(reviewService, postService, sensitiveService, tagService, logger)

@@ -16,13 +16,14 @@ import (
 )
 
 type PostHandler struct {
-	posts  service.PostService
-	likes  service.LikeService
-	logger *slog.Logger
+	posts   service.PostService
+	likes   service.LikeService
+	aliases service.AliasService
+	logger  *slog.Logger
 }
 
-func NewPostHandler(posts service.PostService, likes service.LikeService, logger *slog.Logger) *PostHandler {
-	return &PostHandler{posts: posts, likes: likes, logger: logger}
+func NewPostHandler(posts service.PostService, likes service.LikeService, aliases service.AliasService, logger *slog.Logger) *PostHandler {
+	return &PostHandler{posts: posts, likes: likes, aliases: aliases, logger: logger}
 }
 
 // CreatePost 发布帖子
@@ -45,7 +46,12 @@ func (h *PostHandler) CreatePost(c *gin.Context) {
 		Fail(c, http.StatusInternalServerError, constants.CodeInternal, "create post failed")
 		return
 	}
-	resp := toPostResponse(post, false)
+	resp, err := h.postResponse(post, false)
+	if err != nil {
+		h.logger.Error("resolve post alias", "error", err)
+		Fail(c, http.StatusInternalServerError, constants.CodeInternal, "create post failed")
+		return
+	}
 	OK(c, gin.H{"post": resp, "blocked": blocked, "hitWords": hits})
 }
 
@@ -76,7 +82,12 @@ func (h *PostHandler) ListPosts(c *gin.Context) {
 		Fail(c, http.StatusInternalServerError, constants.CodeInternal, "list posts failed")
 		return
 	}
-	items := h.buildPostResponses(posts, c.GetUint("identityId"))
+	items, err := h.buildPostResponses(posts, c.GetUint("identityId"))
+	if err != nil {
+		h.logger.Error("resolve post aliases", "error", err)
+		Fail(c, http.StatusInternalServerError, constants.CodeInternal, "list posts failed")
+		return
+	}
 	OK(c, dto.PageResult{Items: items, Total: total, Page: req.Page, PageSize: req.PageSize})
 }
 
@@ -103,7 +114,13 @@ func (h *PostHandler) GetPost(c *gin.Context) {
 		return
 	}
 	_ = h.posts.IncrementView(id)
-	resp := toPostResponse(post, c.GetUint("identityId") > 0 && h.isLiked(c.GetUint("identityId"), "post", id))
+	identityID := c.GetUint("identityId")
+	resp, err := h.postResponse(post, identityID > 0 && h.isLiked(identityID, "post", id))
+	if err != nil {
+		h.logger.Error("resolve post alias", "error", err)
+		Fail(c, http.StatusInternalServerError, constants.CodeInternal, "get post failed")
+		return
+	}
 	OK(c, resp)
 }
 
@@ -120,7 +137,13 @@ func (h *PostHandler) HotPosts(c *gin.Context) {
 		Fail(c, http.StatusInternalServerError, constants.CodeInternal, "hot posts failed")
 		return
 	}
-	OK(c, h.buildPostResponses(posts, c.GetUint("identityId")))
+	items, err := h.buildPostResponses(posts, c.GetUint("identityId"))
+	if err != nil {
+		h.logger.Error("resolve post aliases", "error", err)
+		Fail(c, http.StatusInternalServerError, constants.CodeInternal, "hot posts failed")
+		return
+	}
+	OK(c, items)
 }
 
 // FeaturedPosts 每日精选
@@ -136,13 +159,30 @@ func (h *PostHandler) FeaturedPosts(c *gin.Context) {
 		Fail(c, http.StatusInternalServerError, constants.CodeInternal, "featured posts failed")
 		return
 	}
-	OK(c, h.buildPostResponses(posts, c.GetUint("identityId")))
+	items, err := h.buildPostResponses(posts, c.GetUint("identityId"))
+	if err != nil {
+		h.logger.Error("resolve post aliases", "error", err)
+		Fail(c, http.StatusInternalServerError, constants.CodeInternal, "featured posts failed")
+		return
+	}
+	OK(c, items)
 }
 
-func (h *PostHandler) buildPostResponses(posts []model.Post, identityID uint) []dto.PostResponse {
+// postResponse 构建单帖响应，作者以本帖专属化名展示。
+func (h *PostHandler) postResponse(post *model.Post, liked bool) (dto.PostResponse, error) {
+	aliases, err := h.aliases.Resolve([]service.AliasPair{{PostID: post.ID, IdentityID: post.IdentityID}})
+	if err != nil {
+		return dto.PostResponse{}, err
+	}
+	return toPostResponse(post, liked, aliasOf(aliases, post.ID, post.IdentityID)), nil
+}
+
+func (h *PostHandler) buildPostResponses(posts []model.Post, identityID uint) ([]dto.PostResponse, error) {
 	ids := make([]uint, 0, len(posts))
+	pairs := make([]service.AliasPair, 0, len(posts))
 	for _, p := range posts {
 		ids = append(ids, p.ID)
+		pairs = append(pairs, service.AliasPair{PostID: p.ID, IdentityID: p.IdentityID})
 	}
 	likedMap := map[uint]bool{}
 	if identityID > 0 {
@@ -150,11 +190,15 @@ func (h *PostHandler) buildPostResponses(posts []model.Post, identityID uint) []
 			likedMap = m
 		}
 	}
-	items := make([]dto.PostResponse, 0, len(posts))
-	for _, p := range posts {
-		items = append(items, toPostResponse(&p, likedMap[p.ID]))
+	aliases, err := h.aliases.Resolve(pairs)
+	if err != nil {
+		return nil, err
 	}
-	return items
+	items := make([]dto.PostResponse, 0, len(posts))
+	for i := range posts {
+		items = append(items, toPostResponse(&posts[i], likedMap[posts[i].ID], aliasOf(aliases, posts[i].ID, posts[i].IdentityID)))
+	}
+	return items, nil
 }
 
 func (h *PostHandler) isLiked(identityID uint, targetType string, targetID uint) bool {
@@ -165,10 +209,17 @@ func (h *PostHandler) isLiked(identityID uint, targetType string, targetID uint)
 	return m[targetID]
 }
 
-func toPostResponse(post *model.Post, liked bool) dto.PostResponse {
+// aliasOf 从解析结果中取出指定 (帖子, 身份) 的化名。
+func aliasOf(aliases map[uint]map[uint]*model.PostAlias, postID, identityID uint) *model.PostAlias {
+	if byIdentity, ok := aliases[postID]; ok {
+		return byIdentity[identityID]
+	}
+	return nil
+}
+
+func toPostResponse(post *model.Post, liked bool, alias *model.PostAlias) dto.PostResponse {
 	resp := dto.PostResponse{
 		ID:           post.ID,
-		IdentityID:   post.IdentityID,
 		Title:        post.Title,
 		Content:      post.Content,
 		Status:       post.Status,
@@ -179,9 +230,9 @@ func toPostResponse(post *model.Post, liked bool) dto.PostResponse {
 		Liked:        liked,
 		CreatedAt:    post.CreatedAt.Format(time.RFC3339),
 	}
-	if post.Identity != nil {
-		resp.Nickname = post.Identity.Nickname
-		resp.Avatar = post.Identity.Avatar
+	if alias != nil {
+		resp.Nickname = alias.Nickname
+		resp.Avatar = alias.Avatar
 	}
 	if post.Images != "" {
 		var images []string

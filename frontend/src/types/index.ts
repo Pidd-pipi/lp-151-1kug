@@ -14,7 +14,6 @@ export interface Tag {
 
 export interface Post {
   id: number
-  identityId: number
   nickname: string
   avatar: string
   title: string
@@ -33,7 +32,6 @@ export interface Post {
 export interface Comment {
   id: number
   postId: number
-  identityId: number
   nickname: string
   avatar: string
   content: string

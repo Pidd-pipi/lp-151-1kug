@@ -7,6 +7,7 @@ func AllModels() []any {
 		&PostTag{},
 		&Post{},
 		&Comment{},
+		&PostAlias{},
 		&Like{},
 		&SensitiveWord{},
 		&ReviewQueue{},

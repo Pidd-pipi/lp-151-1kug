@@ -16,11 +16,12 @@ import (
 type CommentHandler struct {
 	comments service.CommentService
 	likes    service.LikeService
+	aliases  service.AliasService
 	logger   *slog.Logger
 }
 
-func NewCommentHandler(comments service.CommentService, likes service.LikeService, logger *slog.Logger) *CommentHandler {
-	return &CommentHandler{comments: comments, likes: likes, logger: logger}
+func NewCommentHandler(comments service.CommentService, likes service.LikeService, aliases service.AliasService, logger *slog.Logger) *CommentHandler {
+	return &CommentHandler{comments: comments, likes: likes, aliases: aliases, logger: logger}
 }
 
 // CreateComment 发表评论
@@ -43,7 +44,13 @@ func (h *CommentHandler) CreateComment(c *gin.Context) {
 		Fail(c, http.StatusInternalServerError, constants.CodeInternal, "create comment failed")
 		return
 	}
-	OK(c, gin.H{"comment": toCommentResponse(comment, false), "blocked": blocked, "hitWords": hits})
+	aliases, err := h.aliases.Resolve([]service.AliasPair{{PostID: comment.PostID, IdentityID: comment.IdentityID}})
+	if err != nil {
+		h.logger.Error("resolve comment alias", "error", err)
+		Fail(c, http.StatusInternalServerError, constants.CodeInternal, "create comment failed")
+		return
+	}
+	OK(c, gin.H{"comment": toCommentResponse(comment, false, aliasOf(aliases, comment.PostID, comment.IdentityID)), "blocked": blocked, "hitWords": hits})
 }
 
 // ListComments 帖子评论列表
@@ -77,8 +84,10 @@ func (h *CommentHandler) ListComments(c *gin.Context) {
 		return
 	}
 	ids := make([]uint, 0, len(comments))
+	pairs := make([]service.AliasPair, 0, len(comments))
 	for _, cm := range comments {
 		ids = append(ids, cm.ID)
+		pairs = append(pairs, service.AliasPair{PostID: cm.PostID, IdentityID: cm.IdentityID})
 	}
 	likedMap := map[uint]bool{}
 	if identityID := c.GetUint("identityId"); identityID > 0 {
@@ -86,26 +95,31 @@ func (h *CommentHandler) ListComments(c *gin.Context) {
 			likedMap = m
 		}
 	}
+	aliases, err := h.aliases.Resolve(pairs)
+	if err != nil {
+		h.logger.Error("resolve comment aliases", "error", err)
+		Fail(c, http.StatusInternalServerError, constants.CodeInternal, "list comments failed")
+		return
+	}
 	items := make([]dto.CommentResponse, 0, len(comments))
-	for _, cm := range comments {
-		items = append(items, toCommentResponse(&cm, likedMap[cm.ID]))
+	for i := range comments {
+		items = append(items, toCommentResponse(&comments[i], likedMap[comments[i].ID], aliasOf(aliases, comments[i].PostID, comments[i].IdentityID)))
 	}
 	OK(c, dto.PageResult{Items: items, Total: total, Page: req.Page, PageSize: req.PageSize})
 }
 
-func toCommentResponse(comment *model.Comment, liked bool) dto.CommentResponse {
+func toCommentResponse(comment *model.Comment, liked bool, alias *model.PostAlias) dto.CommentResponse {
 	resp := dto.CommentResponse{
-		ID:         comment.ID,
-		PostID:     comment.PostID,
-		IdentityID: comment.IdentityID,
-		Content:    comment.Content,
-		LikeCount:  comment.LikeCount,
-		Liked:      liked,
-		CreatedAt:  comment.CreatedAt.Format(time.RFC3339),
+		ID:        comment.ID,
+		PostID:    comment.PostID,
+		Content:   comment.Content,
+		LikeCount: comment.LikeCount,
+		Liked:     liked,
+		CreatedAt: comment.CreatedAt.Format(time.RFC3339),
 	}
-	if comment.Identity != nil {
-		resp.Nickname = comment.Identity.Nickname
-		resp.Avatar = comment.Identity.Avatar
+	if alias != nil {
+		resp.Nickname = alias.Nickname
+		resp.Avatar = alias.Avatar
 	}
 	return resp
 }

@@ -26,15 +26,16 @@ type PostService interface {
 }
 
 type postService struct {
-	posts  repository.PostRepository
-	tags   TagService
+	posts     repository.PostRepository
+	tags      TagService
 	sensitive SensitiveWordService
-	review ReviewService
-	logger *slog.Logger
+	review    ReviewService
+	aliases   AliasService
+	logger    *slog.Logger
 }
 
-func NewPostService(posts repository.PostRepository, tags TagService, sensitive SensitiveWordService, review ReviewService, logger *slog.Logger) PostService {
-	return &postService{posts: posts, tags: tags, sensitive: sensitive, review: review, logger: logger}
+func NewPostService(posts repository.PostRepository, tags TagService, sensitive SensitiveWordService, review ReviewService, aliases AliasService, logger *slog.Logger) PostService {
+	return &postService{posts: posts, tags: tags, sensitive: sensitive, review: review, aliases: aliases, logger: logger}
 }
 
 func (s *postService) Create(identityID uint, title, content string, images []string, tagNames []string) (*model.Post, []string, bool, error) {
@@ -70,6 +71,10 @@ func (s *postService) Create(identityID uint, title, content string, images []st
 	post.Tags = tags
 	if err := s.posts.Create(post); err != nil {
 		return nil, hits, blocked, err
+	}
+	// 为作者生成本帖专属的树洞化名，失败不阻断发帖（读取时会按需补生成）。
+	if _, err := s.aliases.Ensure(post.ID, identityID); err != nil {
+		s.logger.Error("ensure post alias", "error", err)
 	}
 	for _, tag := range tags {
 		if err := s.tags.IncCount(tag.ID); err != nil {

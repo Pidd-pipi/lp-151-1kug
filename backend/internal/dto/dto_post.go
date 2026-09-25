@@ -14,22 +14,23 @@ type ListPostRequest struct {
 	Featured bool `json:"featured" form:"featured"`
 }
 
+// PostResponse 帖子对外视图。昵称与头像为该帖专属的树洞化名，
+// 不携带身份编号，避免读者跨帖拼接同一身份的发言。
 type PostResponse struct {
-	ID           uint              `json:"id"`
-	IdentityID   uint              `json:"identityId"`
-	Nickname     string            `json:"nickname"`
-	Avatar       string            `json:"avatar"`
-	Title        string            `json:"title"`
-	Content      string            `json:"content"`
-	Images       []string          `json:"images"`
-	Status       int               `json:"status"`
-	LikeCount    int               `json:"likeCount"`
-	CommentCount int               `json:"commentCount"`
-	ViewCount    int               `json:"viewCount"`
-	IsFeatured   bool              `json:"isFeatured"`
-	Liked        bool              `json:"liked"`
-	Tags         []TagResponse     `json:"tags"`
-	CreatedAt    string            `json:"createdAt"`
+	ID           uint          `json:"id"`
+	Nickname     string        `json:"nickname"`
+	Avatar       string        `json:"avatar"`
+	Title        string        `json:"title"`
+	Content      string        `json:"content"`
+	Images       []string      `json:"images"`
+	Status       int           `json:"status"`
+	LikeCount    int           `json:"likeCount"`
+	CommentCount int           `json:"commentCount"`
+	ViewCount    int           `json:"viewCount"`
+	IsFeatured   bool          `json:"isFeatured"`
+	Liked        bool          `json:"liked"`
+	Tags         []TagResponse `json:"tags"`
+	CreatedAt    string        `json:"createdAt"`
 }
 
 type PageResult struct {

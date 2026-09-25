@@ -2,7 +2,7 @@ openapi: 3.0.3
 info:
   title: 匿名树洞社区 API
   version: 1.0.0
-  description: 匿名发帖/评论、话题标签、点赞热度、每日精选、敏感词审核
+  description: 匿名发帖/评论、话题标签、点赞热度、每日精选、敏感词审核。帖子与评论按「每帖化名」展示：同一身份在同一帖子内（含其评论）使用同一组化名与头像，换帖即换；响应不携带身份编号，无法跨帖拼接发言。
 servers:
   - url: http://localhost:19401
 paths:
@@ -42,7 +42,7 @@ paths:
           description: 身份与 token
   /api/v1/posts:
     get:
-      summary: 最新/标签/精选帖子列表
+      summary: 最新/标签/精选帖子列表（作者以每帖化名展示）
       parameters:
         - in: query
           name: page
@@ -100,7 +100,7 @@ paths:
           description: 帖子详情
   /api/v1/posts/{id}/comments:
     get:
-      summary: 帖子评论列表
+      summary: 帖子评论列表（评论者以该帖化名展示）
       parameters:
         - in: path
           name: id

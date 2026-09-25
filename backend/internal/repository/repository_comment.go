@@ -40,7 +40,7 @@ func (r *commentRepository) Update(comment *model.Comment) error {
 
 func (r *commentRepository) FindByID(id uint) (*model.Comment, error) {
 	var comment model.Comment
-	if err := r.db.Preload("Identity").First(&comment, id).Error; err != nil {
+	if err := r.db.First(&comment, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrNotFound
 		}
@@ -52,7 +52,7 @@ func (r *commentRepository) FindByID(id uint) (*model.Comment, error) {
 func (r *commentRepository) ListByPostID(postID uint, page, pageSize int, status int) ([]model.Comment, int64, error) {
 	var comments []model.Comment
 	var total int64
-	q := r.db.Model(&model.Comment{}).Preload("Identity").Where("post_id = ?", postID)
+	q := r.db.Model(&model.Comment{}).Where("post_id = ?", postID)
 	if status > 0 {
 		q = q.Where("status = ?", status)
 	}
@@ -70,7 +70,7 @@ func (r *commentRepository) ListByIDs(ids []uint) ([]model.Comment, error) {
 	if len(ids) == 0 {
 		return comments, nil
 	}
-	if err := r.db.Preload("Identity").Where("id IN ?", ids).Find(&comments).Error; err != nil {
+	if err := r.db.Where("id IN ?", ids).Find(&comments).Error; err != nil {
 		return nil, fmt.Errorf("list comments by ids: %w", err)
 	}
 	return comments, nil

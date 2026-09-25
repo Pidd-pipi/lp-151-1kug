@@ -16,11 +16,12 @@ import (
 type CommentHandler struct {
 	comments service.CommentService
 	likes    service.LikeService
+	aliases  service.AliasService
 	logger   *slog.Logger
 }
 
-func NewCommentHandler(comments service.CommentService, likes service.LikeService, logger *slog.Logger) *CommentHandler {
-	return &CommentHandler{comments: comments, likes: likes, logger: logger}
+func NewCommentHandler(comments service.CommentService, likes service.LikeService, aliases service.AliasService, logger *slog.Logger) *CommentHandler {
+	return &CommentHandler{comments: comments, likes: likes, aliases: aliases, logger: logger}
 }
 
 // CreateComment 发表评论
@@ -43,7 +44,7 @@ func (h *CommentHandler) CreateComment(c *gin.Context) {
 		Fail(c, http.StatusInternalServerError, constants.CodeInternal, "create comment failed")
 		return
 	}
-	OK(c, gin.H{"comment": toCommentResponse(comment, false), "blocked": blocked, "hitWords": hits})
+	OK(c, gin.H{"comment": h.toCommentResponse(comment, false), "blocked": blocked, "hitWords": hits})
 }
 
 // ListComments 帖子评论列表
@@ -88,24 +89,23 @@ func (h *CommentHandler) ListComments(c *gin.Context) {
 	}
 	items := make([]dto.CommentResponse, 0, len(comments))
 	for _, cm := range comments {
-		items = append(items, toCommentResponse(&cm, likedMap[cm.ID]))
+		items = append(items, h.toCommentResponse(&cm, likedMap[cm.ID]))
 	}
 	OK(c, dto.PageResult{Items: items, Total: total, Page: req.Page, PageSize: req.PageSize})
 }
 
-func toCommentResponse(comment *model.Comment, liked bool) dto.CommentResponse {
-	resp := dto.CommentResponse{
-		ID:         comment.ID,
-		PostID:     comment.PostID,
-		IdentityID: comment.IdentityID,
-		Content:    comment.Content,
-		LikeCount:  comment.LikeCount,
-		Liked:      liked,
-		CreatedAt:  comment.CreatedAt.Format(time.RFC3339),
+// toCommentResponse 组装评论对外响应：昵称与头像使用该身份在所属帖子内的树洞化名，
+// 与帖子楼主及同帖其他评论保持同一套派生规则，且不暴露真实身份编号。
+func (h *CommentHandler) toCommentResponse(comment *model.Comment, liked bool) dto.CommentResponse {
+	alias := h.aliases.For(comment.PostID, comment.IdentityID)
+	return dto.CommentResponse{
+		ID:        comment.ID,
+		PostID:    comment.PostID,
+		Nickname:  alias.Nickname,
+		Avatar:    alias.Avatar,
+		Content:   comment.Content,
+		LikeCount: comment.LikeCount,
+		Liked:     liked,
+		CreatedAt: comment.CreatedAt.Format(time.RFC3339),
 	}
-	if comment.Identity != nil {
-		resp.Nickname = comment.Identity.Nickname
-		resp.Avatar = comment.Identity.Avatar
-	}
-	return resp
 }

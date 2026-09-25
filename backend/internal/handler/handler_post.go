@@ -16,13 +16,14 @@ import (
 )
 
 type PostHandler struct {
-	posts  service.PostService
-	likes  service.LikeService
-	logger *slog.Logger
+	posts   service.PostService
+	likes   service.LikeService
+	aliases service.AliasService
+	logger  *slog.Logger
 }
 
-func NewPostHandler(posts service.PostService, likes service.LikeService, logger *slog.Logger) *PostHandler {
-	return &PostHandler{posts: posts, likes: likes, logger: logger}
+func NewPostHandler(posts service.PostService, likes service.LikeService, aliases service.AliasService, logger *slog.Logger) *PostHandler {
+	return &PostHandler{posts: posts, likes: likes, aliases: aliases, logger: logger}
 }
 
 // CreatePost 发布帖子
@@ -45,7 +46,7 @@ func (h *PostHandler) CreatePost(c *gin.Context) {
 		Fail(c, http.StatusInternalServerError, constants.CodeInternal, "create post failed")
 		return
 	}
-	resp := toPostResponse(post, false)
+	resp := h.toPostResponse(post, false)
 	OK(c, gin.H{"post": resp, "blocked": blocked, "hitWords": hits})
 }
 
@@ -103,7 +104,7 @@ func (h *PostHandler) GetPost(c *gin.Context) {
 		return
 	}
 	_ = h.posts.IncrementView(id)
-	resp := toPostResponse(post, c.GetUint("identityId") > 0 && h.isLiked(c.GetUint("identityId"), "post", id))
+	resp := h.toPostResponse(post, c.GetUint("identityId") > 0 && h.isLiked(c.GetUint("identityId"), "post", id))
 	OK(c, resp)
 }
 
@@ -152,7 +153,7 @@ func (h *PostHandler) buildPostResponses(posts []model.Post, identityID uint) []
 	}
 	items := make([]dto.PostResponse, 0, len(posts))
 	for _, p := range posts {
-		items = append(items, toPostResponse(&p, likedMap[p.ID]))
+		items = append(items, h.toPostResponse(&p, likedMap[p.ID]))
 	}
 	return items
 }
@@ -165,10 +166,11 @@ func (h *PostHandler) isLiked(identityID uint, targetType string, targetID uint)
 	return m[targetID]
 }
 
-func toPostResponse(post *model.Post, liked bool) dto.PostResponse {
+// toPostResponse 组装帖子对外响应：昵称与头像只使用该身份在本篇帖子内的树洞化名，
+// 不携带任何可跨帖拼接的身份编号。
+func (h *PostHandler) toPostResponse(post *model.Post, liked bool) dto.PostResponse {
 	resp := dto.PostResponse{
 		ID:           post.ID,
-		IdentityID:   post.IdentityID,
 		Title:        post.Title,
 		Content:      post.Content,
 		Status:       post.Status,
@@ -179,10 +181,9 @@ func toPostResponse(post *model.Post, liked bool) dto.PostResponse {
 		Liked:        liked,
 		CreatedAt:    post.CreatedAt.Format(time.RFC3339),
 	}
-	if post.Identity != nil {
-		resp.Nickname = post.Identity.Nickname
-		resp.Avatar = post.Identity.Avatar
-	}
+	alias := h.aliases.For(post.ID, post.IdentityID)
+	resp.Nickname = alias.Nickname
+	resp.Avatar = alias.Avatar
 	if post.Images != "" {
 		var images []string
 		if err := json.Unmarshal([]byte(post.Images), &images); err == nil {

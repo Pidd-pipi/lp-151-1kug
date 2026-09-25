@@ -247,3 +247,44 @@ paths:
       responses:
         '200':
           description: 标签数组
+components:
+  schemas:
+    # 帖子/评论中的 nickname、avatar 均为“该身份在本篇帖子内”的树洞化名：
+    # 同一身份在同一篇帖子的发帖与评论沿用同一组值，跨帖即变化；
+    # 响应不包含任何可跨帖拼接的稳定身份编号（无 identityId）。
+    Post:
+      type: object
+      properties:
+        id: { type: integer, description: 帖子ID }
+        nickname: { type: string, description: 按帖派生的树洞昵称 }
+        avatar: { type: string, description: 按帖派生的树洞头像URL }
+        title: { type: string }
+        content: { type: string }
+        images: { type: array, items: { type: string } }
+        status: { type: integer }
+        likeCount: { type: integer }
+        commentCount: { type: integer }
+        viewCount: { type: integer }
+        isFeatured: { type: boolean }
+        liked: { type: boolean, description: 当前登录身份是否已点赞 }
+        tags:
+          type: array
+          items: { $ref: '#/components/schemas/Tag' }
+        createdAt: { type: string, format: date-time }
+    Comment:
+      type: object
+      properties:
+        id: { type: integer, description: 评论ID }
+        postId: { type: integer, description: 所属帖子ID，化名在该帖子范围内稳定 }
+        nickname: { type: string, description: 按帖派生的树洞昵称 }
+        avatar: { type: string, description: 按帖派生的树洞头像URL }
+        content: { type: string }
+        likeCount: { type: integer }
+        liked: { type: boolean }
+        createdAt: { type: string, format: date-time }
+    Tag:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        postCount: { type: integer }

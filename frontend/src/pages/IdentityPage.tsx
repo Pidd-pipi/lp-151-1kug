@@ -62,6 +62,10 @@ export default function IdentityPage() {
         <Typography.Paragraph type="secondary" style={{ marginTop: 8 }}>
           每个身份拥有唯一的身份密钥，密钥只保存在本地浏览器，用于管理自己发布的内容。
         </Typography.Paragraph>
+        <Typography.Paragraph type="secondary" style={{ marginTop: 4, marginBottom: 0 }}>
+          这里显示的是身份的原始昵称与头像。在树洞列表、帖子详情与评论中，系统会为每篇帖子单独生成一套匿名昵称和头像：
+          同一篇帖子里你的发帖与评论保持同一套化名，换到另一篇帖子则完全不同，其他人无法跨帖把你的发言串联起来。
+        </Typography.Paragraph>
       </Card>
       <Card title="我的匿名身份" style={{ marginTop: 16 }}>
         <List

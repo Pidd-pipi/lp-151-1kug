@@ -50,6 +50,8 @@ services:
       BACKEND_PORT: "8080"
       JWT_SECRET: ${JWT_SECRET:-gbtreehole-dev-secret-change-me}
       JWT_EXPIRE_MIN: ${JWT_EXPIRE_MIN:-10080}
+      # 按帖树洞化名的派生密钥；留空时后端回退使用 JWT_SECRET，生产环境建议单独固定
+      ALIAS_SECRET: ${ALIAS_SECRET:-}
       MYSQL_HOST: mysql
       MYSQL_PORT: "3306"
       MYSQL_USER: ${MYSQL_USER:-gbtreehole}

@@ -11,13 +11,12 @@ type ListCommentRequest struct {
 }
 
 type CommentResponse struct {
-	ID         uint   `json:"id"`
-	PostID     uint   `json:"postId"`
-	IdentityID uint   `json:"identityId"`
-	Nickname   string `json:"nickname"`
-	Avatar     string `json:"avatar"`
-	Content    string `json:"content"`
-	LikeCount  int    `json:"likeCount"`
-	Liked      bool   `json:"liked"`
-	CreatedAt  string `json:"createdAt"`
+	ID        uint   `json:"id"`
+	PostID    uint   `json:"postId"`
+	Nickname  string `json:"nickname"`
+	Avatar    string `json:"avatar"`
+	Content   string `json:"content"`
+	LikeCount int    `json:"likeCount"`
+	Liked     bool   `json:"liked"`
+	CreatedAt string `json:"createdAt"`
 }

@@ -60,6 +60,7 @@ func main() {
 
 	// Services
 	tokenService := service.NewTokenService(cfg.JWTSecret, cfg.JWTExpireMin)
+	aliasService := service.NewAliasService(cfg.EffectiveAliasSecret())
 	identityService := service.NewIdentityService(identityRepo, tokenService, logger)
 	tagService := service.NewTagService(tagRepo)
 	sensitiveService := service.NewSensitiveWordService(sensitiveRepo)
@@ -72,8 +73,8 @@ func main() {
 
 	// Handlers
 	authHandler := handler.NewAuthHandler(identityService, logger)
-	postHandler := handler.NewPostHandler(postService, likeService, logger)
-	commentHandler := handler.NewCommentHandler(commentService, likeService, logger)
+	postHandler := handler.NewPostHandler(postService, likeService, aliasService, logger)
+	commentHandler := handler.NewCommentHandler(commentService, likeService, aliasService, logger)
 	tagHandler := handler.NewTagHandler(tagService, logger)
 	likeHandler := handler.NewLikeHandler(likeService, logger)
 	adminHandler := handler.NewAdminHandler(reviewService, postService, sensitiveService, tagService, logger)

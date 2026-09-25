@@ -43,7 +43,7 @@ func (r *postRepository) Update(post *model.Post) error {
 
 func (r *postRepository) FindByID(id uint) (*model.Post, error) {
 	var post model.Post
-	if err := r.db.Preload("Identity").Preload("Tags").First(&post, id).Error; err != nil {
+	if err := r.db.Preload("Tags").First(&post, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrNotFound
 		}
@@ -55,7 +55,7 @@ func (r *postRepository) FindByID(id uint) (*model.Post, error) {
 func (r *postRepository) List(page, pageSize int, status int, featured bool, tagID uint) ([]model.Post, int64, error) {
 	var posts []model.Post
 	var total int64
-	q := r.db.Model(&model.Post{}).Preload("Identity").Preload("Tags")
+	q := r.db.Model(&model.Post{}).Preload("Tags")
 	if status > 0 {
 		q = q.Where("status = ?", status)
 	}
@@ -79,7 +79,7 @@ func (r *postRepository) ListByIDs(ids []uint) ([]model.Post, error) {
 	if len(ids) == 0 {
 		return posts, nil
 	}
-	if err := r.db.Preload("Identity").Preload("Tags").Where("id IN ?", ids).Find(&posts).Error; err != nil {
+	if err := r.db.Preload("Tags").Where("id IN ?", ids).Find(&posts).Error; err != nil {
 		return nil, fmt.Errorf("list posts by ids: %w", err)
 	}
 	return posts, nil
@@ -88,7 +88,7 @@ func (r *postRepository) ListByIDs(ids []uint) ([]model.Post, error) {
 func (r *postRepository) ListHot(limit int) ([]model.Post, error) {
 	var posts []model.Post
 	// 按热度分值（点赞*10 + 评论*5 - 时间衰减）降序
-	if err := r.db.Preload("Identity").Preload("Tags").Where("status = ?", 1).
+	if err := r.db.Preload("Tags").Where("status = ?", 1).
 		Order("(like_count * 10 + comment_count * 5 - TIMESTAMPDIFF(MINUTE, created_at, NOW()) * 0.001) DESC").
 		Limit(limit).Find(&posts).Error; err != nil {
 		return nil, fmt.Errorf("list hot posts: %w", err)
@@ -98,7 +98,7 @@ func (r *postRepository) ListHot(limit int) ([]model.Post, error) {
 
 func (r *postRepository) ListFeatured(limit int) ([]model.Post, error) {
 	var posts []model.Post
-	if err := r.db.Preload("Identity").Preload("Tags").Where("status = ? AND is_featured = ?", 1, true).
+	if err := r.db.Preload("Tags").Where("status = ? AND is_featured = ?", 1, true).
 		Order("featured_at DESC").Limit(limit).Find(&posts).Error; err != nil {
 		return nil, fmt.Errorf("list featured posts: %w", err)
 	}
